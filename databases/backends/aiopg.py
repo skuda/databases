@@ -14,12 +14,7 @@ from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
 
 from databases.core import DatabaseURL
-from databases.interfaces import (
-    ConnectionBackend,
-    DatabaseBackend,
-    Record,
-    TransactionBackend,
-)
+from databases.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
 
 logger = logging.getLogger("databases")
 
@@ -117,7 +112,7 @@ class AiopgConnection(ConnectionBackend):
         await self._database._pool.release(self._connection)
         self._connection = None
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List[Record]:
+    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Mapping]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
         cursor = await self._connection.cursor()
@@ -138,7 +133,7 @@ class AiopgConnection(ConnectionBackend):
         finally:
             cursor.close()
 
-    async def fetch_one(self, query: ClauseElement) -> typing.Optional[Record]:
+    async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Mapping]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
         cursor = await self._connection.cursor()

@@ -1,5 +1,6 @@
 import logging
 import typing
+from collections.abc import Mapping
 
 import asyncpg
 from sqlalchemy.dialects.postgresql import pypostgresql
@@ -10,12 +11,7 @@ from sqlalchemy.sql.schema import Column
 from sqlalchemy.types import TypeEngine
 
 from databases.core import LOG_EXTRA, DatabaseURL
-from databases.interfaces import (
-    ConnectionBackend,
-    DatabaseBackend,
-    Record as RecordInterface,
-    TransactionBackend,
-)
+from databases.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
 
 logger = logging.getLogger("databases")
 
@@ -82,7 +78,7 @@ class PostgresBackend(DatabaseBackend):
         return PostgresConnection(self, self._dialect)
 
 
-class Record(RecordInterface):
+class Record(Mapping):
     __slots__ = (
         "_row",
         "_result_columns",
@@ -109,7 +105,7 @@ class Record(RecordInterface):
         self._column_map, self._column_map_int, self._column_map_full = column_maps
 
     @property
-    def _mapping(self) -> typing.Mapping:
+    def _mapping(self) -> asyncpg.Record:
         return self._row
 
     def keys(self) -> typing.KeysView:
@@ -175,7 +171,7 @@ class PostgresConnection(ConnectionBackend):
         self._connection = await self._database._pool.release(self._connection)
         self._connection = None
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List[RecordInterface]:
+    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Mapping]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, result_columns = self._compile(query)
         rows = await self._connection.fetch(query_str, *args)
@@ -183,7 +179,7 @@ class PostgresConnection(ConnectionBackend):
         column_maps = self._create_column_maps(result_columns)
         return [Record(row, result_columns, dialect, column_maps) for row in rows]
 
-    async def fetch_one(self, query: ClauseElement) -> typing.Optional[RecordInterface]:
+    async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Mapping]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, result_columns = self._compile(query)
         row = await self._connection.fetchrow(query_str, *args)
@@ -238,16 +234,17 @@ class PostgresConnection(ConnectionBackend):
         return PostgresTransaction(connection=self)
 
     def _compile(self, query: ClauseElement) -> typing.Tuple[str, list, tuple]:
-        compiled = query.compile(dialect=self._dialect)
-        expanded = compiled._process_parameters_for_postcompile()
+        compiled = query.compile(
+            dialect=self._dialect, compile_kwargs={"render_postcompile": True}
+        )
 
         if not isinstance(query, DDLElement):
-            compiled_params = sorted(expanded.additional_parameters.items())
+            compiled_params = sorted(compiled.params.items())
 
             mapping = {
                 key: "$" + str(i) for i, (key, _) in enumerate(compiled_params, start=1)
             }
-            compiled_query = expanded.statement % mapping
+            compiled_query = compiled.string % mapping
 
             processors = compiled._bind_processors
             args = [

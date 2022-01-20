@@ -11,12 +11,7 @@ from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
 
 from databases.core import LOG_EXTRA, DatabaseURL
-from databases.interfaces import (
-    ConnectionBackend,
-    DatabaseBackend,
-    Record,
-    TransactionBackend,
-)
+from databases.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
 
 logger = logging.getLogger("databases")
 
@@ -91,7 +86,7 @@ class SQLiteConnection(ConnectionBackend):
         await self._pool.release(self._connection)
         self._connection = None
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List[Record]:
+    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Mapping]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
 
@@ -109,7 +104,7 @@ class SQLiteConnection(ConnectionBackend):
                 for row in rows
             ]
 
-    async def fetch_one(self, query: ClauseElement) -> typing.Optional[Record]:
+    async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Mapping]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
 

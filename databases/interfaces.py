@@ -1,5 +1,4 @@
 import typing
-from collections.abc import Sequence
 
 from sqlalchemy.sql import ClauseElement
 
@@ -22,10 +21,10 @@ class ConnectionBackend:
     async def release(self) -> None:
         raise NotImplementedError()  # pragma: no cover
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List["Record"]:
+    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Mapping]:
         raise NotImplementedError()  # pragma: no cover
 
-    async def fetch_one(self, query: ClauseElement) -> typing.Optional["Record"]:
+    async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Mapping]:
         raise NotImplementedError()  # pragma: no cover
 
     async def fetch_val(
@@ -66,10 +65,4 @@ class TransactionBackend:
         raise NotImplementedError()  # pragma: no cover
 
     async def rollback(self) -> None:
-        raise NotImplementedError()  # pragma: no cover
-
-
-class Record(Sequence):
-    @property
-    def _mapping(self) -> typing.Mapping:
         raise NotImplementedError()  # pragma: no cover
