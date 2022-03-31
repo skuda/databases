@@ -238,17 +238,16 @@ class PostgresConnection(ConnectionBackend):
         return PostgresTransaction(connection=self)
 
     def _compile(self, query: ClauseElement) -> typing.Tuple[str, list, tuple]:
-        compiled = query.compile(
-            dialect=self._dialect, compile_kwargs={"render_postcompile": True}
-        )
+        compiled = query.compile(dialect=self._dialect)
+        expanded = compiled._process_parameters_for_postcompile()
 
         if not isinstance(query, DDLElement):
-            compiled_params = sorted(compiled.params.items())
+            compiled_params = sorted(expanded.additional_parameters.items())
 
             mapping = {
                 key: "$" + str(i) for i, (key, _) in enumerate(compiled_params, start=1)
             }
-            compiled_query = compiled.string % mapping
+            compiled_query = expanded.statement % mapping
 
             processors = compiled._bind_processors
             args = [
