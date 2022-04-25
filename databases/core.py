@@ -209,9 +209,6 @@ class Database:
             opened_conns = self._opened_connections_context.get()
         except LookupError:
             opened_conns = [ self._new_connection(), ]
-            print("connection, not opened connection found yet")
-
-        print("connection", opened_conns)
 
         # The first one is always respected
         cleaned_conns = [ opened_conns[0], ]
