@@ -73,6 +73,11 @@ class Database:
             "connection_context"
         )  # type: contextvars.ContextVar
 
+        # Temporary fix to https://github.com/encode/databases/issues/456
+        self._opened_connections_context = contextvars.ContextVar(
+            "opened_connections_context"
+        )  # type: contextvars.ContextVar
+
         # When `force_rollback=True` is used, we use a single global
         # connection, within a transaction that always rolls back.
         self._global_connection = None  # type: typing.Optional[Connection]
@@ -185,6 +190,15 @@ class Database:
     def _new_connection(self) -> "Connection":
         connection = Connection(self._backend)
         self._connection_context.set(connection)
+
+        try:
+            opened_conns = self._opened_connections_context.get()
+        except LookupError:
+            opened_conns = []
+
+        opened_conns.append(connection)
+        self._opened_connections_context.set(opened_conns)
+
         return connection
 
     def connection(self) -> "Connection":
@@ -192,9 +206,28 @@ class Database:
             return self._global_connection
 
         try:
-            return self._connection_context.get()
+            opened_conns = self._opened_connections_context.get()
         except LookupError:
-            return self._new_connection()
+            opened_conns = [ self._new_connection(), ]
+            print("connection, not opened connection found yet")
+
+        print("connection", opened_conns)
+
+        # The first one is always respected
+        cleaned_conns = [ opened_conns[0], ]
+
+        # We check if we have available any database connection with a transaction in this context
+        # If we found one we try to use that connection
+        # If there is another connection opened, but it finished its transaction we remove it here
+        # And yes, we know this would break with nested transactions, but we don't use that, it's evil!
+        if len(opened_conns) > 1:
+            for conn_ in opened_conns[1:]:
+                if conn_._transaction_stack:
+                    cleaned_conns.append(conn_)
+
+        self._opened_connections_context.set(cleaned_conns)
+
+        return cleaned_conns[-1]
 
     def transaction(
         self, *, force_rollback: bool = False, **kwargs: typing.Any
